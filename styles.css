@@ -1,0 +1,264 @@
+/* ===========================
+   VARIABLES & RESET
+=========================== */
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface-hover: #222;
+  --border: #2a2a2a;
+  --text-primary: #f0ede8;
+  --text-secondary: #888;
+  --accent: #e8c84a;
+  --accent-dim: rgba(232, 200, 74, 0.15);
+  --source-mako: #e53935;
+  --source-ynet: #1565c0;
+  --source-walla: #2e7d32;
+  --source-unknown: #555;
+  --radius: 10px;
+  --font-hebrew: "Noto Serif Hebrew", "David Libre", "Frank Ruhl Libre", Georgia, serif;
+  --font-ui: "Noto Sans Hebrew", "Arial Hebrew", Tahoma, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ===========================
+   GOOGLE FONTS (optional, loads async)
+   Falls back to system fonts if offline
+=========================== */
+@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Noto+Sans+Hebrew:wght@400;500;700&display=swap');
+
+/* ===========================
+   HEADER
+=========================== */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15, 15, 15, 0.96);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.header-inner {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.logo {
+  font-family: "Frank Ruhl Libre", var(--font-hebrew);
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.last-updated {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* New items notification bar */
+.new-items-bar {
+  background: var(--accent-dim);
+  border-top: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 7px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.new-items-bar:hover { background: rgba(232, 200, 74, 0.25); }
+.new-items-bar.hidden { display: none; }
+
+/* ===========================
+   FEED
+=========================== */
+.feed {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Empty / loading state */
+.feed-status {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+.feed-status .spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===========================
+   NEWS CARD
+=========================== */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.18s, border-color 0.18s, transform 0.15s;
+  cursor: pointer;
+  animation: fadeIn 0.3s ease both;
+}
+.card:hover {
+  background: var(--surface-hover);
+  border-color: #3a3a3a;
+  transform: translateY(-1px);
+}
+.card.is-new {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Thumbnail */
+.card-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--border);
+  display: block;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Card body */
+.card-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Meta row: source + time */
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.source-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: #fff;
+}
+.source-mako  { background: var(--source-mako); }
+.source-ynet  { background: var(--source-ynet); }
+.source-walla { background: var(--source-walla); }
+.source-unknown { background: var(--source-unknown); }
+
+.card-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-right: auto; /* pushes time to left in RTL */
+}
+
+/* Title */
+.card-title {
+  font-family: "Frank Ruhl Libre", var(--font-hebrew);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+/* Summary */
+.card-summary {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ===========================
+   LOAD MORE
+=========================== */
+.load-more-wrap {
+  max-width: 680px;
+  margin: 4px auto 32px;
+  padding: 0 12px;
+  text-align: center;
+}
+
+.load-more-btn {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  padding: 10px 28px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.load-more-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.load-more-btn.hidden { display: none; }
+
+/* ===========================
+   FOOTER
+=========================== */
+.site-footer {
+  border-top: 1px solid var(--border);
+  text-align: center;
+  padding: 16px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* ===========================
+   DESKTOP TWEAKS
+=========================== */
+@media (min-width: 600px) {
+  .card-title { font-size: 1.15rem; }
+  .card-body { padding: 14px 18px 16px; }
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>חדשות עכשיו</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <h1 class="logo">⚡ חדשות עכשיו</h1>
+      <span id="last-updated" class="last-updated"></span>
+    </div>
+    <div id="new-items-bar" class="new-items-bar hidden"></div>
+  </header>
+
+  <main id="feed" class="feed" aria-live="polite"></main>
+
+  <div class="load-more-wrap">
+    <button id="load-more-btn" class="load-more-btn hidden">טען עוד</button>
+  </div>
+
+  <footer class="site-footer">
+    <p>מקורות: mako · ynet · walla | מתעדכן אוטומטית</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
