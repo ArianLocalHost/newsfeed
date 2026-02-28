@@ -3,23 +3,18 @@
  * פיד החדשות של אריאן — app.js
  * =============================================
  *
- * CORS NOTE:
- * Browsers block cross-origin RSS fetches from static pages.
- * Two strategies are tried in order:
- *   1. Direct fetch (works only if the server sends CORS headers — usually fails)
- *   2. Proxy via rss2json.com (free, no API key required for public feeds)
+ * CORS: Two proxy strategies are tried per feed.
+ *   1. rss2json.com  — returns JSON, handles most feeds
+ *   2. allorigins.win — returns raw XML (we parse it), good fallback
  *
- * To swap proxy: change PROXY_URL below.
- * Alternatives:
- *   - https://api.rss2json.com/v1/api.json?rss_url=   (current)
- *   - https://api.allorigins.win/get?url=              (returns raw XML)
- *   - Your own Cloudflare Worker / Netlify function
+ * TIME FIX:
+ *   rss2json returns pubDate as "YYYY-MM-DD HH:MM:SS" in the feed's LOCAL
+ *   timezone (Israel, UTC+2/+3). Do NOT append "Z" — treat as local time.
+ *   JS new Date("2024-06-10 16:00:00") → parsed as local → displays correctly.
  *
- * TIME NOTE:
- * All dates are parsed as-is from the feed. RSS pubDate strings are typically
- * in RFC 2822 format which includes a timezone offset (e.g. "+0200" for Israel).
- * We always display using local browser time via date.toLocaleTimeString().
- * Do NOT manually add/subtract hours — the JS Date object handles TZ conversion.
+ * ENCODING FIX:
+ *   ynet RSS is Windows-1255. When fetching raw XML, we use TextDecoder with
+ *   'windows-1255' to get proper Hebrew text.
  */
 
 // =============================================
@@ -27,24 +22,43 @@
 // =============================================
 const CONFIG = {
   INITIAL_POSTS:    20,
-  POLL_INTERVAL_MS: 30_000,        // 30 seconds
+  POLL_INTERVAL_MS: 30_000,
   TIME_WINDOW_MS:   10 * 60_000,   // 10 minutes
-  PROXY_URL: 'https://api.rss2json.com/v1/api.json?rss_url=',
+
+  // Primary proxy: rss2json (JSON response)
+  PROXY_RSS2JSON: 'https://api.rss2json.com/v1/api.json?rss_url=',
+  // Fallback proxy: allorigins (returns raw XML inside JSON)
+  PROXY_ALLORIGINS: 'https://api.allorigins.win/get?url=',
 
   FEEDS: [
-    { url: 'https://storage.googleapis.com/mako-sitemaps/rssHomepage.xml', name: 'mako',  label: 'מאקו' },
-    { url: 'https://www.ynet.co.il/Integration/StoryRss1854.xml',          name: 'ynet',  label: 'ynet' },
-    { url: 'https://rss.walla.co.il/feed/22',                              name: 'walla', label: 'וואלה' },
+    {
+      url:      'https://storage.googleapis.com/mako-sitemaps/rssHomepage.xml',
+      name:     'mako',
+      label:    'מאקו',
+      encoding: 'utf-8',
+    },
+    {
+      url:      'https://www.ynet.co.il/Integration/StoryRss1854.xml',
+      name:     'ynet',
+      label:    'ynet',
+      encoding: 'windows-1255',   // ynet publishes in Windows-1255
+    },
+    {
+      url:      'https://rss.walla.co.il/feed/22',
+      name:     'walla',
+      label:    'וואלה',
+      encoding: 'utf-8',
+    },
   ],
 };
 
 // =============================================
 // STATE
 // =============================================
-let allItems    = [];  // all fetched items, sorted newest-first
-let activeTab   = 'all';
-let shownCount  = 0;   // cards currently in the DOM for the active tab
-let pendingNew  = [];  // newly fetched items awaiting user acknowledgement
+let allItems   = [];
+let activeTab  = 'all';
+let shownCount = 0;
+let pendingNew = [];
 
 // =============================================
 // DOM REFS
@@ -56,46 +70,63 @@ const lastUpdEl   = document.getElementById('last-updated');
 const tabs        = document.querySelectorAll('.tab');
 
 // =============================================
-// FETCH
+// FETCH — three strategies per feed
 // =============================================
 
 async function fetchFeed(feed) {
-  // Strategy 1: direct fetch
+
+  // ── Strategy 1: direct fetch with correct encoding ──
   try {
     const res = await fetch(feed.url, {
       cache: 'no-store',
       signal: AbortSignal.timeout(5000),
     });
     if (res.ok) {
-      const text = await res.text();
-      return parseRssXml(text, feed.name);
+      // Read as ArrayBuffer so we can decode with the correct charset
+      const buf  = await res.arrayBuffer();
+      const text = new TextDecoder(feed.encoding || 'utf-8').decode(buf);
+      const items = parseRssXml(text, feed.name);
+      if (items.length > 0) return items;
     }
-  } catch (_) { /* CORS / network — fall through */ }
+  } catch (_) { /* CORS or network — try proxy */ }
 
-  // Strategy 2: rss2json proxy
+  // ── Strategy 2: rss2json proxy ──
   try {
-    const proxyUrl = CONFIG.PROXY_URL + encodeURIComponent(feed.url);
-    const res = await fetch(proxyUrl, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(8000),
-    });
+    const url = CONFIG.PROXY_RSS2JSON + encodeURIComponent(feed.url);
+    const res  = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       const json = await res.json();
-      if (json.items) return parseRss2JsonItems(json.items, feed.name);
+      if (json.status === 'ok' && json.items?.length) {
+        return parseRss2JsonItems(json.items, feed.name);
+      }
+    }
+  } catch (_) { /* try next */ }
+
+  // ── Strategy 3: allorigins proxy (returns raw XML) ──
+  try {
+    const url = CONFIG.PROXY_ALLORIGINS + encodeURIComponent(feed.url);
+    const res  = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.contents) {
+        return parseRssXml(json.contents, feed.name);
+      }
     }
   } catch (e) {
-    console.warn(`[feed] ${feed.name} failed:`, e.message);
+    console.warn(`[feed] ${feed.name} all strategies failed:`, e.message);
   }
 
   return [];
 }
 
 // =============================================
-// PARSE — XML path
+// PARSE — raw XML
 // =============================================
 
 function parseRssXml(xmlText, sourceName) {
-  const doc   = new DOMParser().parseFromString(xmlText, 'text/xml');
+  // allorigins sometimes escapes the XML — unescape if needed
+  const cleaned = xmlText.startsWith('&lt;') ? unescapeHtml(xmlText) : xmlText;
+  const doc   = new DOMParser().parseFromString(cleaned, 'text/xml');
   const items = [...doc.querySelectorAll('item, entry')];
   return items.map(el => normaliseXmlItem(el, sourceName)).filter(Boolean);
 }
@@ -106,27 +137,33 @@ function normaliseXmlItem(item, sourceName) {
   const title = get('title');
   const link  = get('link') || item.querySelector('link')?.getAttribute('href') || '';
 
-  // Parse date — RSS uses RFC 2822 with embedded TZ offset; JS Date handles it correctly.
   const pubStr      = get('pubDate') || get('published') || get('updated') || '';
-  const publishedAt = pubStr ? new Date(pubStr) : null;
-  if (!title || !link || !publishedAt || isNaN(publishedAt)) return null;
+  const publishedAt = parseFeedDate(pubStr);
+  if (!title || !link || !publishedAt) return null;
 
-  const description = stripHtml(get('description') || get('summary') || get('content')).slice(0, 220);
-  const media       = extractMediaXml(item);
+  const description = stripHtml(
+    get('description') || get('summary') || get('content')
+  ).slice(0, 220);
+
+  const media = extractMediaXml(item);
 
   return { id: link, title, link, publishedAt, sourceName, description, media };
 }
 
 function extractMediaXml(item) {
+  // <media:content url="...">
   const mc = item.querySelector('content');
   if (mc?.getAttribute('url')) return mc.getAttribute('url');
 
+  // <enclosure url="..." type="image/...">
   const enc = item.querySelector('enclosure');
   if (enc && /image/i.test(enc.getAttribute('type') || '')) return enc.getAttribute('url');
 
+  // <media:thumbnail url="...">
   const th = item.querySelector('thumbnail');
   if (th?.getAttribute('url')) return th.getAttribute('url');
 
+  // <img> inside description CDATA
   const rawDesc = item.querySelector('description')?.textContent || '';
   const m = rawDesc.match(/<img[^>]+src=["']([^"']+)["']/i);
   if (m) return m[1];
@@ -135,16 +172,15 @@ function extractMediaXml(item) {
 }
 
 // =============================================
-// PARSE — rss2json proxy path
+// PARSE — rss2json JSON items
 // =============================================
 
 function parseRss2JsonItems(items, sourceName) {
   return items.map(item => {
     const title       = item.title?.trim();
     const link        = item.link?.trim();
-    // rss2json returns pubDate in "YYYY-MM-DD HH:MM:SS" UTC — parse carefully
-    const publishedAt = item.pubDate ? parsePubDate(item.pubDate) : null;
-    if (!title || !link || !publishedAt || isNaN(publishedAt)) return null;
+    const publishedAt = item.pubDate ? parseFeedDate(item.pubDate) : null;
+    if (!title || !link || !publishedAt) return null;
 
     const description = stripHtml(item.description || item.content || '').slice(0, 220);
     const media = item.enclosure?.link
@@ -156,16 +192,39 @@ function parseRss2JsonItems(items, sourceName) {
   }).filter(Boolean);
 }
 
+// =============================================
+// DATE PARSING — the critical fix
+// =============================================
+
 /**
- * rss2json returns dates as "2024-06-10 14:30:00" which JS treats as LOCAL time.
- * But the original feed times are typically in Israel time (UTC+2/UTC+3).
- * rss2json converts to UTC before returning. We append "Z" to treat as UTC.
+ * Parse a feed date string into a JS Date, displaying the correct local time.
+ *
+ * RSS feeds from Israel send dates in one of these formats:
+ *   A) RFC 2822 with explicit offset:  "Mon, 10 Jun 2024 16:00:00 +0300"
+ *      → JS Date() parses this perfectly → getHours() gives local time ✓
+ *
+ *   B) rss2json proxy output:          "2024-06-10 16:00:00"
+ *      → This is already the feed's local time (Israel), NOT UTC.
+ *      → Do NOT add "Z". Parse as-is so JS treats it as local time.
+ *      → On an Israeli browser: displays 16:00 ✓
+ *
+ *   C) ISO with Z:                     "2024-06-10T13:00:00Z"
+ *      → JS parses as UTC → browser converts to local → correct ✓
  */
-function parsePubDate(str) {
-  // If the string already has a timezone indicator, trust it
-  if (/[Z+\-]\d{2}:?\d{2}$/.test(str)) return new Date(str);
-  // Otherwise rss2json gives us UTC — append Z
-  return new Date(str.replace(' ', 'T') + 'Z');
+function parseFeedDate(str) {
+  if (!str) return null;
+
+  // Format B: "YYYY-MM-DD HH:MM:SS" — no timezone info.
+  // rss2json passes through the feed's local time unchanged.
+  // Treat as local time (no Z suffix).
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str.trim())) {
+    const d = new Date(str.trim().replace(' ', 'T'));
+    return isNaN(d) ? null : d;
+  }
+
+  // All other formats (RFC 2822, ISO with Z, etc.) — let JS handle it
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
 }
 
 // =============================================
@@ -179,17 +238,27 @@ function stripHtml(html) {
 }
 
 function extractImgFromHtml(html) {
-  const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  const m = (html || '').match(/<img[^>]+src=["']([^"']+)["']/i);
   return m ? m[1] : null;
 }
 
-/**
- * Format time for display.
- * Uses the browser's local timezone — no manual offset arithmetic.
- */
+function unescapeHtml(str) {
+  const d = document.createElement('div');
+  d.innerHTML = str;
+  return d.textContent;
+}
+
+// =============================================
+// TIME FORMATTING
+// =============================================
+
 function formatAbsoluteTime(date) {
-  // e.g. "14:32" in local time
-  return date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false });
+  // Use browser locale + local timezone — always correct
+  return date.toLocaleTimeString('he-IL', {
+    hour:   '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 function formatRelativeTime(date) {
@@ -202,7 +271,6 @@ function formatRelativeTime(date) {
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 24)   return `לפני ${diffH} שע׳`;
 
-  // Older than a day: show date + time
   return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })
     + ' ' + formatAbsoluteTime(date);
 }
@@ -222,7 +290,10 @@ function getActiveItems() {
 
 tabs.forEach(tab => {
   tab.addEventListener('click', () => {
-    tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+    tabs.forEach(t => {
+      t.classList.remove('active');
+      t.setAttribute('aria-selected', 'false');
+    });
     tab.classList.add('active');
     tab.setAttribute('aria-selected', 'true');
     activeTab = tab.dataset.source;
@@ -241,9 +312,9 @@ function buildCard(item, isNew = false) {
   a.target    = '_blank';
   a.rel       = 'noopener noreferrer';
 
-  // Thumbnail (only for image URLs)
+  // Thumbnail
   if (item.media && /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(item.media)) {
-    const img = document.createElement('img');
+    const img     = document.createElement('img');
     img.className = 'card-thumb';
     img.src       = item.media;
     img.alt       = '';
@@ -252,38 +323,35 @@ function buildCard(item, isNew = false) {
     a.appendChild(img);
   }
 
-  const body = document.createElement('div');
+  const body     = document.createElement('div');
   body.className = 'card-body';
 
-  // Meta row
-  const meta = document.createElement('div');
+  const meta     = document.createElement('div');
   meta.className = 'card-meta';
 
-  const badge = document.createElement('span');
-  badge.className = `source-badge source-${item.sourceName}`;
+  const badge       = document.createElement('span');
+  badge.className   = `source-badge source-${item.sourceName}`;
   badge.textContent = CONFIG.FEEDS.find(f => f.name === item.sourceName)?.label || item.sourceName;
 
-  const timeEl = document.createElement('time');
-  timeEl.className = 'card-time';
-  timeEl.dateTime  = item.publishedAt.toISOString();
-  timeEl.textContent = formatTimeLabel(item.publishedAt);
-  timeEl.title = item.publishedAt.toLocaleString('he-IL');
+  const timeEl         = document.createElement('time');
+  timeEl.className     = 'card-time';
+  timeEl.dateTime      = item.publishedAt.toISOString();
+  timeEl.textContent   = formatTimeLabel(item.publishedAt);
+  timeEl.title         = item.publishedAt.toLocaleString('he-IL');
 
   meta.appendChild(badge);
   meta.appendChild(timeEl);
 
-  // Title
-  const titleEl = document.createElement('h2');
-  titleEl.className = 'card-title';
+  const titleEl       = document.createElement('h2');
+  titleEl.className   = 'card-title';
   titleEl.textContent = item.title;
 
   body.appendChild(meta);
   body.appendChild(titleEl);
 
-  // Summary
   if (item.description) {
-    const sum = document.createElement('p');
-    sum.className = 'card-summary';
+    const sum       = document.createElement('p');
+    sum.className   = 'card-summary';
     sum.textContent = item.description;
     body.appendChild(sum);
   }
@@ -292,23 +360,19 @@ function buildCard(item, isNew = false) {
   return a;
 }
 
-/** Full re-render of the feed for the active tab */
 function renderFull() {
   feedEl.innerHTML = '';
   shownCount = 0;
 
   const items = getActiveItems();
-
   if (items.length === 0) {
     feedEl.innerHTML = '<div class="feed-status">אין פריטים להצגה</div>';
     loadMoreBtn.classList.add('hidden');
     return;
   }
-
   appendCards(items, 0, CONFIG.INITIAL_POSTS);
 }
 
-/** Append a slice of cards to the feed */
 function appendCards(items, from, count) {
   const slice = items.slice(from, from + count);
   const frag  = document.createDocumentFragment();
@@ -318,21 +382,19 @@ function appendCards(items, from, count) {
   loadMoreBtn.classList.toggle('hidden', shownCount >= items.length);
 }
 
-/** Show loading spinner in the feed area */
 function showSpinner() {
   feedEl.innerHTML = '<div class="feed-status"><div class="spinner"></div><br>טוען חדשות...</div>';
   loadMoreBtn.classList.add('hidden');
 }
 
 // =============================================
-// POLLING LOGIC
+// POLLING
 // =============================================
 
 async function loadFeeds(isFirstLoad = false) {
   if (isFirstLoad) showSpinner();
 
-  const cutoff = Date.now() - CONFIG.TIME_WINDOW_MS;
-
+  const cutoff  = Date.now() - CONFIG.TIME_WINDOW_MS;
   const results = await Promise.all(CONFIG.FEEDS.map(fetchFeed));
   const fresh   = results.flat()
     .filter(item => item.publishedAt.getTime() >= cutoff)
@@ -344,7 +406,6 @@ async function loadFeeds(isFirstLoad = false) {
   } else {
     const existingIds = new Set(allItems.map(i => i.id));
     const newItems    = fresh.filter(i => !existingIds.has(i.id));
-
     if (newItems.length > 0) {
       pendingNew = newItems;
       newItemsBar.textContent = `נמצאו ${newItems.length} פריטים חדשים — לחץ לרענון`;
@@ -363,17 +424,14 @@ function applyPendingNew() {
   pendingNew = [];
 
   allItems = dedup([...toAdd, ...allItems]).sort((a, b) => b.publishedAt - a.publishedAt);
-
   newItemsBar.classList.add('hidden');
 
-  // Prepend new cards relevant to the active tab
   const relevant = toAdd.filter(i => activeTab === 'all' || i.sourceName === activeTab);
   if (relevant.length) {
     const frag = document.createDocumentFragment();
     relevant.forEach(item => frag.appendChild(buildCard(item, true)));
     feedEl.prepend(frag);
     shownCount += relevant.length;
-    // Remove highlight after 12 s
     setTimeout(() => {
       feedEl.querySelectorAll('.card.is-new').forEach(c => c.classList.remove('is-new'));
     }, 12_000);
@@ -391,14 +449,9 @@ function dedup(items) {
   });
 }
 
-// =============================================
-// TIMESTAMP REFRESH (every 60 s)
-// =============================================
-
 function refreshTimestamps() {
   feedEl.querySelectorAll('time.card-time').forEach(el => {
-    const date = new Date(el.dateTime);
-    el.textContent = formatTimeLabel(date);
+    el.textContent = formatTimeLabel(new Date(el.dateTime));
   });
 }
 
@@ -412,8 +465,7 @@ function refreshTimestamps() {
   setInterval(refreshTimestamps, 60_000);
 
   loadMoreBtn.addEventListener('click', () => {
-    const items = getActiveItems();
-    appendCards(items, shownCount, CONFIG.INITIAL_POSTS);
+    appendCards(getActiveItems(), shownCount, CONFIG.INITIAL_POSTS);
   });
 
   newItemsBar.addEventListener('click', () => {
