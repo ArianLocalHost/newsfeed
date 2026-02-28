@@ -3,26 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>חדשות עכשיו</title>
+  <title>פיד החדשות של אריאן</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+
   <header class="site-header">
     <div class="header-inner">
-      <h1 class="logo">⚡ חדשות עכשיו</h1>
-      <span id="last-updated" class="last-updated"></span>
+      <div class="header-title-group">
+        <h1 class="logo">פיד החדשות של אריאן</h1>
+        <span id="last-updated" class="last-updated"></span>
+      </div>
     </div>
+
+    <!-- Tab bar -->
+    <nav class="tab-bar" role="tablist" aria-label="מקורות חדשות">
+      <button class="tab active" role="tab" data-source="all" aria-selected="true">הכל</button>
+      <button class="tab" role="tab" data-source="mako" aria-selected="false">מאקו</button>
+      <button class="tab" role="tab" data-source="ynet" aria-selected="false">ynet</button>
+      <button class="tab" role="tab" data-source="walla" aria-selected="false">וואלה</button>
+    </nav>
+
     <div id="new-items-bar" class="new-items-bar hidden"></div>
   </header>
 
-  <main id="feed" class="feed" aria-live="polite"></main>
+  <main id="feed" class="feed" aria-live="polite" aria-relevant="additions"></main>
 
   <div class="load-more-wrap">
-    <button id="load-more-btn" class="load-more-btn hidden">טען עוד</button>
+    <button id="load-more-btn" class="load-more-btn hidden">טען פריטים נוספים</button>
   </div>
 
   <footer class="site-footer">
-    <p>מקורות: mako · ynet · walla | מתעדכן אוטומטית</p>
+    מקורות: מאקו · ynet · וואלה &nbsp;|&nbsp; מתעדכן כל 30 שניות
   </footer>
 
   <script src="app.js"></script>

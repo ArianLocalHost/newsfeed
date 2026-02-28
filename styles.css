@@ -2,41 +2,40 @@
    VARIABLES & RESET
 =========================== */
 :root {
-  --bg: #0f0f0f;
-  --surface: #1a1a1a;
-  --surface-hover: #222;
-  --border: #2a2a2a;
-  --text-primary: #f0ede8;
-  --text-secondary: #888;
-  --accent: #e8c84a;
-  --accent-dim: rgba(232, 200, 74, 0.15);
-  --source-mako: #e53935;
-  --source-ynet: #1565c0;
-  --source-walla: #2e7d32;
-  --source-unknown: #555;
-  --radius: 10px;
-  --font-hebrew: "Noto Serif Hebrew", "David Libre", "Frank Ruhl Libre", Georgia, serif;
-  --font-ui: "Noto Sans Hebrew", "Arial Hebrew", Tahoma, sans-serif;
+  --bg:            #f4f4f4;
+  --surface:       #ffffff;
+  --surface-hover: #fafafa;
+  --border:        #ddd;
+  --border-light:  #e8e8e8;
+  --text-primary:  #111;
+  --text-secondary:#666;
+  --text-meta:     #888;
+  --accent:        #c00;          /* deep red — professional news red */
+  --accent-bg:     #fff5f5;
+  --new-bar-bg:    #fff8e1;
+  --new-bar-border:#f0c040;
+  --new-bar-text:  #7a5c00;
+  --source-mako:   #c00;
+  --source-ynet:   #004b9e;
+  --source-walla:  #1a6e2e;
+  --source-unknown:#555;
+  --tab-active-border: #c00;
+  --font: Arial, "Arial Hebrew", Tahoma, "Helvetica Neue", sans-serif;
+  --radius: 6px;
+  --max-w: 700px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { scroll-behavior: smooth; }
 
 body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: 16px;
-  line-height: 1.6;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
   min-height: 100vh;
 }
-
-/* ===========================
-   GOOGLE FONTS (optional, loads async)
-   Falls back to system fonts if offline
-=========================== */
-@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Noto+Sans+Hebrew:wght@400;500;700&display=swap');
 
 /* ===========================
    HEADER
@@ -45,79 +44,119 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(15, 15, 15, 0.96);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
+  background: #fff;
+  border-bottom: 2px solid var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
 }
 
 .header-inner {
-  max-width: 680px;
+  max-width: var(--max-w);
   margin: 0 auto;
-  padding: 12px 16px;
+  padding: 10px 16px 8px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
 }
 
 .logo {
-  font-family: "Frank Ruhl Libre", var(--font-hebrew);
-  font-size: 1.35rem;
-  font-weight: 900;
+  font-family: var(--font);
+  font-size: 1.2rem;
+  font-weight: 700;
   color: var(--accent);
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
   white-space: nowrap;
 }
 
 .last-updated {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+  font-size: 0.72rem;
+  color: var(--text-meta);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-/* New items notification bar */
-.new-items-bar {
-  background: var(--accent-dim);
-  border-top: 1px solid var(--accent);
+/* ===========================
+   TABS
+=========================== */
+.tab-bar {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  gap: 0;
+  border-top: 1px solid var(--border-light);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  margin-bottom: -1px; /* overlap header border-bottom */
+}
+.tab:hover { color: var(--accent); }
+.tab.active {
   color: var(--accent);
-  font-size: 0.82rem;
+  border-bottom-color: var(--accent);
+}
+
+/* ===========================
+   NEW ITEMS BAR
+=========================== */
+.new-items-bar {
+  background: var(--new-bar-bg);
+  border-top: 1px solid var(--new-bar-border);
+  color: var(--new-bar-text);
+  font-size: 0.8rem;
   font-weight: 600;
   text-align: center;
-  padding: 7px 16px;
+  padding: 6px 16px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
-.new-items-bar:hover { background: rgba(232, 200, 74, 0.25); }
+.new-items-bar:hover { background: #fff3cd; }
 .new-items-bar.hidden { display: none; }
 
 /* ===========================
    FEED
 =========================== */
 .feed {
-  max-width: 680px;
+  max-width: var(--max-w);
   margin: 0 auto;
-  padding: 16px 12px 8px;
+  padding: 14px 12px 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-/* Empty / loading state */
+/* Loading / empty state */
 .feed-status {
   text-align: center;
   padding: 48px 24px;
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
-.feed-status .spinner {
+.spinner {
   display: inline-block;
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--border);
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 12px;
+  animation: spin 0.75s linear infinite;
+  margin-bottom: 10px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -133,22 +172,16 @@ body {
   flex-direction: column;
   text-decoration: none;
   color: inherit;
-  transition: background 0.18s, border-color 0.18s, transform 0.15s;
   cursor: pointer;
-  animation: fadeIn 0.3s ease both;
+  transition: box-shadow 0.15s, border-color 0.15s;
 }
 .card:hover {
-  background: var(--surface-hover);
-  border-color: #3a3a3a;
-  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.09);
+  border-color: #bbb;
 }
 .card.is-new {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  border-right: 3px solid var(--accent); /* RTL: highlight on the right */
+  background: var(--accent-bg);
 }
 
 /* Thumbnail */
@@ -156,51 +189,50 @@ body {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  background: var(--border);
+  background: var(--border-light);
   display: block;
-  border-bottom: 1px solid var(--border);
 }
 
 /* Card body */
 .card-body {
-  padding: 12px 14px 14px;
+  padding: 11px 13px 13px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
-/* Meta row: source + time */
+/* Meta: source badge + time */
 .card-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 7px;
 }
 
 .source-badge {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 7px;
-  border-radius: 4px;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 3px;
   color: #fff;
+  flex-shrink: 0;
 }
-.source-mako  { background: var(--source-mako); }
-.source-ynet  { background: var(--source-ynet); }
-.source-walla { background: var(--source-walla); }
+.source-mako    { background: var(--source-mako); }
+.source-ynet    { background: var(--source-ynet); }
+.source-walla   { background: var(--source-walla); }
 .source-unknown { background: var(--source-unknown); }
 
 .card-time {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-right: auto; /* pushes time to left in RTL */
+  font-size: 0.72rem;
+  color: var(--text-meta);
+  margin-right: auto; /* pushes to left side in RTL */
 }
 
 /* Title */
 .card-title {
-  font-family: "Frank Ruhl Libre", var(--font-hebrew);
-  font-size: 1.05rem;
+  font-family: var(--font);
+  font-size: 0.98rem;
   font-weight: 700;
   line-height: 1.4;
   color: var(--text-primary);
@@ -208,11 +240,11 @@ body {
 
 /* Summary */
 .card-summary {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--text-secondary);
   line-height: 1.5;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -221,22 +253,22 @@ body {
    LOAD MORE
 =========================== */
 .load-more-wrap {
-  max-width: 680px;
-  margin: 4px auto 32px;
+  max-width: var(--max-w);
+  margin: 6px auto 32px;
   padding: 0 12px;
   text-align: center;
 }
 
 .load-more-btn {
-  background: transparent;
-  border: 1.5px solid var(--border);
+  background: #fff;
+  border: 1px solid var(--border);
   color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: 0.9rem;
-  padding: 10px 28px;
-  border-radius: 99px;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  padding: 9px 28px;
+  border-radius: var(--radius);
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
+  transition: border-color 0.15s, color 0.15s;
 }
 .load-more-btn:hover {
   border-color: var(--accent);
@@ -248,17 +280,18 @@ body {
    FOOTER
 =========================== */
 .site-footer {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-light);
   text-align: center;
-  padding: 16px;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+  padding: 14px 16px;
+  font-size: 0.7rem;
+  color: var(--text-meta);
 }
 
 /* ===========================
-   DESKTOP TWEAKS
+   DESKTOP
 =========================== */
 @media (min-width: 600px) {
-  .card-title { font-size: 1.15rem; }
-  .card-body { padding: 14px 18px 16px; }
+  .card-title { font-size: 1.05rem; }
+  .card-body  { padding: 13px 16px 15px; }
+  .logo       { font-size: 1.3rem; }
 }
